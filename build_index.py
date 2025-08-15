@@ -1,5 +1,11 @@
 import os, json
 from openai import OpenAI
+try:
+    import sys
+    import pysqlite3  # type: ignore
+    sys.modules["sqlite3"] = pysqlite3
+except Exception:
+    pass
 import chromadb
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -69,4 +75,5 @@ ids = [s["id"] for s in SKILLS]
 embs = embed(docs)
 
 coll.add(documents=docs, metadatas=metadatas, ids=ids, embeddings=embs)
+
 print("Indexed", len(SKILLS), "skills into Chroma at", CHROMA_PATH)
