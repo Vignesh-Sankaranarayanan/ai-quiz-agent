@@ -54,7 +54,12 @@ except Exception:
     _http_client = None
 
 client = OpenAI(api_key=api_key, http_client=_http_client) if _http_client else OpenAI(api_key=api_key)
-chroma = chromadb.PersistentClient(path=CHROMA_PATH)
+try:
+	chroma = chromadb.PersistentClient(path=CHROMA_PATH)
+except AttributeError:
+	from chromadb.config import Settings
+	chroma = chromadb.Client(Settings(persist_directory=CHROMA_PATH))
+skills = chroma.get_or_create_collection("skills")
 skills = chroma.get_or_create_collection("skills")
 
 def retrieve_skill_context(subject: str, grade: str, difficulty: int):
@@ -313,3 +318,4 @@ else:
                 st.markdown(f"{i}. {status} {h.get('question','')}")
 
                 st.caption(f"You: {h.get('selected')} | Correct: {h.get('correct')}")
+
