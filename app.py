@@ -5,6 +5,12 @@ import json, time, os
 import streamlit_authenticator as stauth
 import yaml
 
+try:
+    import sys
+    import pysqlite3  # type: ignore
+    sys.modules["sqlite3"] = pysqlite3
+except Exception:
+    pass
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 CHROMA_PATH = os.path.join(BASE_DIR, "chroma")
 
@@ -305,4 +311,5 @@ else:
             for i, h in enumerate(st.session_state.history, start=1):
                 status = "✅" if h.get("is_correct") else "❌"
                 st.markdown(f"{i}. {status} {h.get('question','')}")
+
                 st.caption(f"You: {h.get('selected')} | Correct: {h.get('correct')}")
