@@ -61,7 +61,11 @@ except Exception:
     _http_client = None
 
 client = OpenAI(api_key=api_key, http_client=_http_client) if _http_client else OpenAI(api_key=api_key)
-chroma = chromadb.PersistentClient(path=CHROMA_PATH)
+try:
+    chroma = chromadb.PersistentClient(path=CHROMA_PATH)
+except AttributeError:
+    from chromadb.config import Settings
+    chroma = chromadb.Client(Settings(persist_directory=CHROMA_PATH))
 coll = chroma.get_or_create_collection(name="skills")
 
 # Embed with OpenAI
@@ -77,3 +81,4 @@ embs = embed(docs)
 coll.add(documents=docs, metadatas=metadatas, ids=ids, embeddings=embs)
 
 print("Indexed", len(SKILLS), "skills into Chroma at", CHROMA_PATH)
+
