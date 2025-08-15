@@ -1,57 +1,61 @@
 from openai import OpenAI
-import chromadb
+import sys
+try:
+	import pysqlite3  # type: ignore
+	sys.modules["sqlite3"] = pysqlite3
+except Exception:
+	pass
+try:
+	import chromadb  # initial import
+except Exception:
+	import importlib
+	chromadb = importlib.import_module("chromadb")
 import streamlit as st
 import json, time, os
 import streamlit_authenticator as stauth
 import yaml
 
-try:
-    import sys
-    import pysqlite3  # type: ignore
-    sys.modules["sqlite3"] = pysqlite3
-except Exception:
-    pass
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 CHROMA_PATH = os.path.join(BASE_DIR, "chroma")
 
 # Resolve API key from env or secrets files
 api_key = os.getenv("OPENAI_API_KEY")
 if not api_key:
-    for rel in [os.path.join(BASE_DIR, ".streamlit", "secrets.toml"), os.path.join(BASE_DIR, "secrets.toml")]:
-        try:
-            if os.path.exists(rel):
-                import tomllib
-                with open(rel, "rb") as f:
-                    data = tomllib.load(f)
-                if isinstance(data, dict):
-                    api_key = data.get("OPENAI_API_KEY") or (data.get("openai") or {}).get("api_key") or (data.get("OPENAI") or {}).get("api_key")
-                if api_key:
-                    break
-        except Exception:
-            pass
+	for rel in [os.path.join(BASE_DIR, ".streamlit", "secrets.toml"), os.path.join(BASE_DIR, "secrets.toml")]:
+		try:
+			if os.path.exists(rel):
+				import tomllib
+				with open(rel, "rb") as f:
+					data = tomllib.load(f)
+				if isinstance(data, dict):
+					api_key = data.get("OPENAI_API_KEY") or (data.get("openai") or {}).get("api_key") or (data.get("OPENAI") or {}).get("api_key")
+				if api_key:
+					break
+		except Exception:
+			pass
 if not api_key:
-    raise RuntimeError("OPENAI_API_KEY not found. Set env var or add it to .streamlit/secrets.toml or secrets.toml")
+	raise RuntimeError("OPENAI_API_KEY not found. Set env var or add it to .streamlit/secrets.toml or secrets.toml")
 
 # Optionally configure HTTP client for proxies/TLS
 _http_client = None
 try:
-    import httpx, ssl
-    skip_verify = os.getenv("OPENAI_INSECURE_SKIP_VERIFY") == "1"
-    verify = False if skip_verify else None
-    bundle = os.getenv("OPENAI_CA_BUNDLE") or os.getenv("REQUESTS_CA_BUNDLE") or os.getenv("SSL_CERT_FILE")
-    if not skip_verify and bundle and os.path.exists(bundle):
-        verify = bundle
-    elif not skip_verify:
-        try:
-            import truststore  # pip install truststore
-            ssl_ctx = truststore.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
-            verify = ssl_ctx
-        except Exception:
-            verify = None
-    use_http2 = os.getenv("OPENAI_DISABLE_HTTP2") != "1"
-    _http_client = httpx.Client(http2=use_http2, timeout=30.0, verify=verify)
+	import httpx, ssl
+	skip_verify = os.getenv("OPENAI_INSECURE_SKIP_VERIFY") == "1"
+	verify = False if skip_verify else None
+	bundle = os.getenv("OPENAI_CA_BUNDLE") or os.getenv("REQUESTS_CA_BUNDLE") or os.getenv("SSL_CERT_FILE")
+	if not skip_verify and bundle and os.path.exists(bundle):
+		verify = bundle
+	elif not skip_verify:
+		try:
+			import truststore  # pip install truststore
+			ssl_ctx = truststore.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+			verify = ssl_ctx
+		except Exception:
+			verify = None
+	use_http2 = os.getenv("OPENAI_DISABLE_HTTP2") != "1"
+	_http_client = httpx.Client(http2=use_http2, timeout=30.0, verify=verify)
 except Exception:
-    _http_client = None
+	_http_client = None
 
 client = OpenAI(api_key=api_key, http_client=_http_client) if _http_client else OpenAI(api_key=api_key)
 try:
@@ -59,7 +63,6 @@ try:
 except AttributeError:
 	from chromadb.config import Settings
 	chroma = chromadb.Client(Settings(persist_directory=CHROMA_PATH))
-skills = chroma.get_or_create_collection("skills")
 skills = chroma.get_or_create_collection("skills")
 
 def retrieve_skill_context(subject: str, grade: str, difficulty: int):
@@ -316,6 +319,4 @@ else:
             for i, h in enumerate(st.session_state.history, start=1):
                 status = "✅" if h.get("is_correct") else "❌"
                 st.markdown(f"{i}. {status} {h.get('question','')}")
-
                 st.caption(f"You: {h.get('selected')} | Correct: {h.get('correct')}")
-
