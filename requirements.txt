@@ -1,14 +1,20 @@
 
-streamlit-authenticator==0.3.3
+streamlit==1.36.0
 openai>=1.30.0
-chromadb==1.0.17
-streamlit==1.36.0 
-
+chromadb>=0.5.0
+httpx>=0.27.0
+truststore>=0.8.0
+streamlit-authenticator==0.3.3
 PyYAML==6.0.2
+pysqlite3-binary
+pysqlite3-binary
+httpx
+truststore
 
 #$env:OPENAI_INSECURE_SKIP_VERIFY='1'
 #$env:OPENAI_DISABLE_HTTP2='1'
 
 #streamlit run app.py --server.port 8502
+
 
 
