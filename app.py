@@ -15,10 +15,28 @@ import json, time, os
 import streamlit_authenticator as stauth
 import yaml
 from typing import Optional
+import tempfile
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 CHROMA_PATH = os.path.join(BASE_DIR, "chroma")
 SELECT_PROMPT = "— Select an answer —"
+
+# Ensure Chroma path is writable (use temp dir on cloud if needed)
+def _ensure_writable_dir(path: str) -> str:
+	try:
+		os.makedirs(path, exist_ok=True)
+		# simple write test
+		probe = os.path.join(path, ".probe")
+		with open(probe, "w", encoding="utf-8") as f:
+			f.write("ok")
+		os.remove(probe)
+		return path
+	except Exception:
+		fallback = os.path.join(tempfile.gettempdir(), "chroma")
+		os.makedirs(fallback, exist_ok=True)
+		return fallback
+
+CHROMA_PATH = _ensure_writable_dir(CHROMA_PATH)
 
 # Resolve API key from env or secrets files
 api_key = os.getenv("OPENAI_API_KEY")
@@ -66,11 +84,36 @@ except Exception:
 	_http_client = None
 
 client = OpenAI(api_key=api_key, http_client=_http_client) if _http_client else OpenAI(api_key=api_key)
+
+# Create Chroma client (disable telemetry, persist to writable path, cache the resource)
 try:
-	chroma = chromadb.PersistentClient(path=CHROMA_PATH)
-except AttributeError:
 	from chromadb.config import Settings
-	chroma = chromadb.Client(Settings(persist_directory=CHROMA_PATH))
+except Exception:
+	Settings = None  # type: ignore
+
+@st.cache_resource(show_spinner=False)
+def _get_chroma_client(persist_dir: str):
+	# Prefer Client(Settings(...)) to avoid tenant DB errors on some platforms
+	if Settings is not None:
+		try:
+			# Settings signature differs across versions; try verbose first
+			settings = None
+			try:
+				settings = Settings(
+					persist_directory=persist_dir,
+					anonymized_telemetry=False,
+					is_persistent=True,
+				)
+			except TypeError:
+				settings = Settings(persist_directory=persist_dir)
+			return chromadb.Client(settings)
+		except Exception:
+			# Fallback to in-memory
+			return chromadb.Client(Settings(anonymized_telemetry=False)) if Settings is not None else chromadb.Client()
+	# Very old versions
+	return chromadb.Client()
+
+chroma = _get_chroma_client(CHROMA_PATH)
 skills = chroma.get_or_create_collection("skills")
 
 def retrieve_skill_context(subject: str, grade: str, difficulty: int):
